@@ -5,6 +5,8 @@ Materials for the **Advanced Deadline Alerts** hands-on workshop at Airflow Summ
 In this workshop you will build a custom Deadline Reference from scratch: a `CloseOfBusinessDeadline` that 
 knows your business calendar, skips weekends and holidays, and warns you *before* the deadline rather than after.
 
+**The walkthrough is in [EXERCISE.md](EXERCISE.md).**
+
 ## Before You Arrive
 
 **Please set this up before the session.** Conference wifi will not be able to support 25 people downloading 
@@ -17,8 +19,8 @@ Airflow at once, and we only have two hours.
 - Ability to **add a file to your plugins directory** and restart Airflow.
 - Ability to **set an Airflow Variable** (UI or CLI).
 - Ability to **read task logs**, which is where the deadline callback output appears.
-- **Python 3.10 or newer**.  If Airflow runs you already have this. Listed separately because the minimalist 
-  path below needs only Python.
+- **Python 3.10 or newer**.  If Airflow runs you already have this. Listed separately because the checker 
+  needs only Python.
 
 Airflow 3.3.0 is the floor because the workshop uses features that landed across the 3.x line: multiple 
 deadline alerts per Dag (3.2.0) and `VariableInterval` (3.3.0).
@@ -49,8 +51,23 @@ Airflow install is, but having it already on disk is one less thing to do in the
 git clone https://github.com/ferruzzi/deadline-alerts-workshop.git
 ```
 
-Exercise and solution files are still being finalized, so **run `git pull` the morning of the session** 
+Exercise and solution files may still get small fixes, so **run `git pull` the morning of the session** 
 to pick up the latest.
+
+### Triggering the Demo Dag
+
+Any of these work, and the exercise does not care which you use:
+
+```bash
+airflow dags trigger cob_deadline_demo                        # fine for this exercise
+airflow dags trigger cob_deadline_demo -l "$(date -Iseconds)" # safest in general
+```
+
+The bare form leaves the run's `logical_date` unset. That is harmless here, because
+`CloseOfBusinessDeadline` computes its own time, but a Reference built on
+`DeadlineReference.DAGRUN_LOGICAL_DATE` gets no deadline at all when it is NULL, and says nothing
+about it. Worth knowing before you go building your own in the free-form session. Triggering from
+the UI sets it for you.
 
 ## Didn't Get Set Up? You Can Still Participate
 
@@ -58,10 +75,34 @@ Two fallbacks, no preparation required:
 
 1. **Pair up.** One working laptop per pair is plenty, and talking through the logic with someone else is 
    arguably the better way to learn it.  We will try to pair people off at the start of the session.
-2. **Minimalist path.** The important part of this exercise, the business-day logic and the serialization 
-   contract, does not need a running Airflow at all. See [`minimalist/README.md`](minimalist/README.md) for a standalone 
-   runner that needs only Python 3.10+ and no Airflow install.  You lose the option to see your work run
+2. **The checker on its own.** The important part of this exercise, the business-day logic and the serialization 
+   contract, does not need a running Airflow at all. See [`checker/README.md`](checker/README.md) for a standalone 
+   checker that needs only Python 3.10+ and no Airflow install.  You lose the option to see your work run
    in the Airflow UI, but it can still be validated.
+
+**Everyone should use the checker, not just people without Airflow.** `checker/check.py` validates your
+Reference in about a second, where the Airflow loop is restart, trigger, wait for a heartbeat, read the logs. It
+also catches two mistakes that Airflow reports silently: fields dropped by missing serializers, and a Reference
+that was decorated but never registered in a plugin.
+
+```bash
+python checker/check.py
+```
+
+
+## Repo Map
+
+```
+EXERCISE.md                 the step-by-step walkthrough; start here in the session
+plugins/                    copy into $AIRFLOW_HOME/plugins/
+  cob_reference.py          your working file, with TODOs
+  deadline_callbacks.py     given to you, complete
+dags/                       copy into $AIRFLOW_HOME/dags/
+  cob_deadline_demo.py      the demo Dag, one TODO
+solutions/                  completed examples
+checker/                    check.py, the checker; also the whole exercise if you have no Airflow
+```
+
 
 ## Useful Links
 
@@ -70,8 +111,7 @@ Two fallbacks, no preparation required:
 
 ## Questions
 
-Find me at the Summit, or `@ferruzzi` on the
-[Apache Airflow Slack](https://apache-airflow-slack.herokuapp.com/).
+Find me at the Summit, or `@ferruzzi` on the [Apache Airflow Slack](https://apache-airflow-slack.herokuapp.com/).
 
 ## License
 

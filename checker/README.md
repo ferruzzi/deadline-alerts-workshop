@@ -26,10 +26,15 @@ python checker/check.py plugins/cob_reference.py
 Either path works, from the repo root or from this directory:
 
 ```bash
-cd checker && python check.py                        # defaults to ../plugins/cob_reference.py
-python check.py ../solutions/step3_hardcoded.py         # or check a solution
+cd checker && python check.py                            # the file you are editing
+python check.py ../solutions/step3_hardcoded.py           # or check a solution
 python check.py ../solutions/cob_reference.py
 ```
+
+With no arguments it looks for `$AIRFLOW_HOME/plugins/cob_reference.py` first, since Setup has you copy
+the files there and edit the copies, and falls back to `plugins/cob_reference.py` in the repo for anyone
+working without Airflow.  The interval is resolved the same way, preferring
+`$AIRFLOW_HOME/dags/cob_deadline_demo.py`.  The path it used is always printed.
 
 A second path points it at a different Dag, which is useful in Part 4 when you are building your own:
 

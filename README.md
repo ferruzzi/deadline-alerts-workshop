@@ -99,9 +99,18 @@ plugins/                    copy into $AIRFLOW_HOME/plugins/
   deadline_callbacks.py     given to you, complete
 dags/                       copy into $AIRFLOW_HOME/dags/
   cob_deadline_demo.py      the demo Dag, one TODO
-solutions/                  completed examples
-checker/                    check.py, the checker; also the whole exercise if you have no Airflow
+solutions/                  checkpoints to compare against when you are stuck
+  step3_hardcoded.py        after Step 3: registered and firing, no business logic yet
+  step5_variable.py         after Step 5: Variable-backed, serializers still to come
+  cob_reference.py          the finished Reference
+  cob_deadline_demo.py      the finished Dag
+checker/
+  check.py                  validates your Reference; also the whole exercise if you have no Airflow
+  variables.json            stands in for Airflow Variables when you have no Airflow
 ```
+
+`step5_variable.py` is deliberately incomplete and the checker will say so.  That is the point of it: it is what
+Step 6 exists to fix.
 
 
 ## Useful Links

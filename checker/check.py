@@ -30,6 +30,7 @@ from __future__ import annotations
 import ast
 import dataclasses
 import json
+import os
 import sys
 import types
 from datetime import datetime, timedelta
@@ -37,7 +38,22 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_INTERVAL = timedelta(minutes=-30)
-DEMO_DAG = HERE.parent / "dags" / "cob_deadline_demo.py"
+
+
+def _preferred(subdir: str, filename: str) -> Path:
+    """
+    Prefer the copy in your Airflow folders, falling back to the repo.
+
+    The exercise has you copy plugins/ and dags/ into Airflow and edit the copies, since those are
+    the ones Airflow loads.  So those are the ones worth checking.  Anyone working without Airflow
+    never made copies, and gets the repo files instead.  Either way the path is printed, so you can
+    see which one was picked.
+    """
+    airflow_home = Path(os.environ.get("AIRFLOW_HOME", "~/airflow")).expanduser()
+    in_airflow = airflow_home / subdir / filename
+    if in_airflow.exists():
+        return in_airflow
+    return HERE.parent / subdir / filename
 
 
 ############################################################################
@@ -323,12 +339,12 @@ def _check(mod: types.ModuleType, cls: type, interval: timedelta, interval_sourc
 def main() -> int:
     _install_stubs()
 
-    target = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE.parent / "plugins" / "cob_reference.py"
+    target = Path(sys.argv[1]) if len(sys.argv) > 1 else _preferred("plugins", "cob_reference.py")
     target = target.resolve()
     if not target.exists():
         raise SystemExit(f"No such file: {target}")
 
-    dag_path = (Path(sys.argv[2]) if len(sys.argv) > 2 else DEMO_DAG).resolve()
+    dag_path = (Path(sys.argv[2]) if len(sys.argv) > 2 else _preferred("dags", "cob_deadline_demo.py")).resolve()
     interval, interval_source = _interval_from_dag(dag_path)
 
     print(f"Checking {target}")

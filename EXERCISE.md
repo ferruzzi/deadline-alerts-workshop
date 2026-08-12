@@ -11,12 +11,23 @@ negative interval so it warns you *before* the deadline rather than after.
 
 ## Setup
 
-Copy the two directories into your Airflow home, or point Airflow at them:
+> [!NOTE]
+> **No working Airflow?** Skip this whole section. Edit `plugins/cob_reference.py` right here in the repo,
+> and instead of setting Airflow Variables, edit `checker/variables.json`. Everything from Step 1 onwards
+> works exactly the same; you will just use the checker rather than triggering a Dag. See
+> [`checker/README.md`](checker/README.md).
+
+Copy the two directories into your Airflow home:
 
 ```bash
-cp plugins/* $AIRFLOW_HOME/plugins/
-cp dags/* $AIRFLOW_HOME/dags/
+cp plugins/*.py $AIRFLOW_HOME/plugins/
+cp dags/*.py $AIRFLOW_HOME/dags/
 ```
+
+> [!IMPORTANT]
+> From here on, **edit the copies in `$AIRFLOW_HOME`, not the files in this repo.** Those are the ones
+> Airflow loads; edits to the repo copies have no effect. The checker prefers the `$AIRFLOW_HOME` copies
+> too and prints the path it used, so you can always confirm which file it looked at.
 
 Then **restart Airflow**.  Plugin registration happens at import, so a restart is needed after every change to 
 a plugin file.  This will be the single most common reason a change you make in this workshop doesn't appear to 
@@ -42,9 +53,11 @@ whether the plugin registration is in place.  Use it at every checkpoint below. 
 restart, trigger, read logs, and it catches the two mistakes that are otherwise completely silent: dropped fields
 and missing registration.
 
-With no arguments it checks `plugins/cob_reference.py`, which is the file you are editing, and it prints the path it
-checked so you can see it picked the right one.  Run it from anywhere; it works out its own paths.  You can hand it
-a different file if you want to look at a solution, and `checker/README.md` covers that.
+With no arguments it checks the `cob_reference.py` you are editing.  If you copied the files into
+`$AIRFLOW_HOME` as Setup says, it checks that copy, since that is the one Airflow loads; otherwise it falls
+back to the one in this repo.  Either way it prints the path it checked, so you can confirm it picked the
+right file.  Run it from anywhere; it works out its own paths.  You can hand it a different file if you want
+to look at a solution, and `checker/README.md` covers that.
 
 If you could not get Airflow running at all, this is also the whole exercise; the file you write is the same
 either way.
@@ -249,6 +262,11 @@ checker exists.
 `solutions/cob_reference.py` is the finished Reference.
 
 ## Step 7: Test both directions
+
+This step needs a running Airflow: it is where you watch a deadline actually fire.  Without one, the checker
+already told you what the deadline would be, and you can change the close-of-business time in
+`checker/variables.json` to see it move between "already passed" and "in the future".  The live version will be
+demonstrated during the session.
 
 **A close of business in the past should fire immediately.**
 

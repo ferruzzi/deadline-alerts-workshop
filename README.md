@@ -18,23 +18,29 @@ Airflow at once, and we only have two hours.
   `airflow standalone`, an existing dev environment, or Breeze if that is already your workflow.
 - Ability to **add a file to your plugins directory** and restart Airflow.
 - Ability to **set an Airflow Variable** (UI or CLI).
-- Ability to **read task logs**, which is where the deadline callback output appears.
+- Ability to **watch your scheduler's console output**, which is where the deadline callback output appears.
+  (It is also written to `$AIRFLOW_HOME/logs/executor_callbacks/`.  `EXERCISE.md` has a table of where to find 
+  it for each way of running Airflow, plus a `grep` one-liner that works without console access at all.)
 - **Python 3.10 or newer**.  If Airflow runs you already have this. Listed separately because the checker 
   needs only Python.
-
-Airflow 3.3.0 is the floor because the workshop uses features that landed across the 3.x line: multiple 
-deadline alerts per Dag (3.2.0) and `VariableInterval` (3.3.0).
 
 ### Verify Your Setup
 
 Run this against the same Python environment as your Airflow install:
 
 ```bash
-python -c "from airflow.sdk.definitions.deadline import VariableInterval; print('ready')"
+python -c "
+import airflow
+from airflow.plugins_manager import AirflowPlugin
+from airflow.sdk import DeadlineAlert, DeadlineReference, SyncCallback
+from airflow.sdk.definitions.deadline import BaseDeadlineReference, deadline_reference
+print('ready, airflow', airflow.__version__)
+"
 ```
 
-If it prints `ready`, you are set. If it raises `ImportError` or `ModuleNotFoundError`, your Airflow is 
-either older than 3.3.0 or not installed in that environment.
+If it prints `ready` and a version of 3.3.0 or newer, you are set.  If it raises `ImportError` or
+`ModuleNotFoundError`, your Airflow is either too old or not installed in that environment; the second is the more
+common surprise, so check the version it prints even when the imports succeed.
 
 Also confirm the version itself:
 

@@ -40,6 +40,18 @@ airflow variables set cob_config '{"hour": 17, "minute": 0}'
 airflow variables set us_holidays '["2026-12-25", "2026-01-01", "2026-07-04"]'
 ```
 
+Finally, **unpause the Dag**:
+
+```bash
+airflow dags unpause cob_deadline_demo
+```
+
+New Dags are paused when they first appear (`core.dags_are_paused_at_creation` defaults to `True`), and the toggle
+is at the top left of the Dag page in the UI if you prefer clicking.  Triggering a paused Dag looks like it worked:
+you get a Dag run, it sits in `queued`, and no task ever starts.  Nothing in the UI tells you why.  This is the
+second most common reason something in this workshop appears to do nothing, right behind forgetting to restart
+after editing a plugin.
+
 ## Checking Your Work
 
 There is a checker in [`checker/`](checker/README.md) that runs your Reference with no Airflow involved:
@@ -126,8 +138,8 @@ Both are required, and they do different jobs.  The decorator makes the class av
 when it deserializes your Dag.  If you skip the plugin then triggering the Dag fails with 
 `DeadlineReferenceNotRegistered`, which takes the whole Dag run with it rather than just the deadline.
 
-Restart Airflow and trigger `cob_deadline_demo`, then look for the 🚨 in the task logs.  You should have a firing 
-deadline before you have any real logic. That is the point.
+Restart Airflow and trigger `cob_deadline_demo` (unpaused, per Setup), then look for `FINDME` in your scheduler's 
+console output (or grep the log file).  You should have a firing deadline before you have any real logic.
 
 ### Checkpoint
 
@@ -137,9 +149,39 @@ python checker/check.py
 
 Everything should pass now: `All good: 1 reference(s) checked.`
 
-**In Airflow:** this is the first point where the whole thing runs.  Restart, trigger `cob_deadline_demo`, and the
-🚨 shows up in the task logs on the next scheduler heartbeat.  You have a working custom Deadline Reference before
-you have written a single line of business logic.
+**In Airflow:** this is the first point where the whole thing runs.  Restart, trigger `cob_deadline_demo`, and
+`**FINDME**` shows up in your scheduler's console on the next scheduler heartbeat.  You have a working custom
+Deadline Reference before you have written a single line of business logic.
+
+> [!TIP]
+> **Where the callback output goes.** A deadline callback is not a task instance, so its output is *not* in the
+> task log and the UI has no page for it.  Two places to look:
+> - **Your scheduler's console**, where it appears live within seconds, tagged `[task.stdout]`.  That console also
+>   carries ordinary task output, so it is busy; we included `**FINDME**` in the message so `grep FINDME` picks
+>   out yours.
+> - **`$AIRFLOW_HOME/logs/executor_callbacks/<dag_id>/<run_id>/<callback_id>`**, the durable copy.  Note the
+>   filename is the bare callback UUID with no `.log` extension, and the contents are JSON lines.
+>
+> If the callback ran at all, your scheduler also logs `Callback ... completed successfully`, which is a useful
+> check when you cannot find the output itself.
+
+### Finding your scheduler's output
+
+"Watch the scheduler console" means something different depending on how you run Airflow:
+
+| how you run it | where the callback output shows up |
+|---|---|
+| `airflow standalone` | the same terminal, on lines prefixed `scheduler` |
+| `airflow scheduler` in its own terminal | that terminal |
+| official Docker Compose | `docker compose logs -f airflow-scheduler` |
+| systemd service | `journalctl -u airflow-scheduler -f` |
+
+**If none of those fit, skip the console entirely.**  This works on every install, needs no access to whatever is
+running your scheduler, and can be run after the fact:
+
+```bash
+grep -r FINDME "$(airflow config get-value logging base_log_folder)/executor_callbacks/"
+```
 
 `solutions/step3_hardcoded.py` is the matching known-good example if you want to compare.
 
@@ -275,7 +317,8 @@ airflow variables set cob_config '{"hour": 0, "minute": 1}'
 airflow dags trigger cob_deadline_demo
 ```
 
-The deadline is already overdue, so the callback runs on the next scheduler heartbeat.  Check the task logs for 🚨.
+The deadline is already overdue, so the callback runs on the next scheduler heartbeat.  Watch your scheduler's
+console for `**FINDME**`, or `grep FINDME` the file under `$AIRFLOW_HOME/logs/executor_callbacks/`.
 
 **A close of business in the future fires when it arrives.** 
 
@@ -307,13 +350,17 @@ fire a future deadline no matter how carefully you set the Variable.
 - **`airflow dags trigger <dag_id>` with no `-l` leaves `logical_date` NULL.**  It does not matter for this exercise, 
   but a Reference built on `DAGRUN_LOGICAL_DATE` gets no deadline at all in that case. Pass `-l "$(date -Iseconds)"` 
   or trigger from the UI.
-- **`Variable.get()` inside `_evaluate_with()` is safe here, but not on a scheduled Dag.** The scheduler creates
-  scheduled runs inside a `prohibit_commit` guard, and `Variable.get` opens its own session and commits, which
-  drops the deadline silently.  This exercise triggers manually, so the run is created in the API server and the
-  call is fine.  [#68917](https://github.com/apache/airflow/pull/68917) has the fix and the reasoning behind it.
+- **`Variable.get()` inside `_evaluate_with()` is safe here, but it will take down a scheduler.**  This exercise
+  triggers manually, so the run is created in the API server or the CLI and the call is fine.  On a **scheduled**
+  Dag it is not: the scheduler creates runs inside a `prohibit_commit` guard, `Variable.get` opens its own session,
+  and the ORM instances the deadline write needs end up detached.  Confirmed on 3.3.0: the deadline write raises
+  `DetachedInstanceError`, the scheduler's own "do not crash on a misconfigured Dag" handler raises a second one
+  while logging it, and **the scheduler process exits and crashes again on restart**, because the same Dag is still
+  due.  If that happens to you: **pause the Dag** (the UI stays up, only the scheduler dies), then restart the
+  scheduler.
 
-  Until that fix gets released, Variables will work on scheduled Dags if you pass the existing session to the
-  metadata store:
+  So if you add a `schedule=` to your Dag during the free-form section, read the Variable through the session you
+  were already handed:
 
   ```python
   from airflow.secrets.metastore import MetastoreBackend
@@ -323,7 +370,9 @@ fire a future deadline no matter how carefully you set the Variable.
 
   That joins the existing transaction instead of opening a second one.  Note that it reads only the metadata
   database, so `AIRFLOW_VAR_*` env vars and other secrets backends are skipped.
-- **`VariableInterval` requires a positive number of seconds.** Variable-backed *intervals* cannot be negative, 
-  even though hardcoded negative timedeltas are supported and documented.  If you want "alert before" plus 
-  Variable-backed config, put the configuration in the Reference, which is what this exercise does.  This is a bug 
-  which will be fixed in a coming release.
+  [#68917](https://github.com/apache/airflow/pull/68917) fixes the equivalent problem for Airflow's own
+  Variable-backed interval, but not for a custom Reference doing its own lookup, so this is the pattern to use.
+- **Put configuration in your Reference, not in the interval.**  Airflow does have a way to read the *interval*
+  itself from a Variable, but it is not usable yet: it rejects negative values, so "alert 30 minutes before" is off
+  the table, and its behaviour on scheduled runs is still being repaired.  Keeping the configuration inside the
+  Reference, which is what this exercise does, gets you Variable-backed timing and negative intervals today.

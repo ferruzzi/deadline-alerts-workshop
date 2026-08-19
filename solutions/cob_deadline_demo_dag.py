@@ -9,21 +9,21 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from cob_reference import CloseOfBusinessDeadline
 from deadline_callbacks import log_missed_deadline
 
 from airflow.providers.standard.operators.bash import BashOperator
-from airflow.sdk import DAG, DeadlineAlert, SyncCallback
+from airflow.sdk import DAG, DeadlineAlert, DeadlineReference, SyncCallback
 
 with DAG(
     dag_id="cob_deadline_demo",
     schedule=None,
     deadline=DeadlineAlert(
-        # Instantiating directly rather than using DeadlineReference.CloseOfBusinessDeadline lets you pass fields.
-        reference=CloseOfBusinessDeadline(
-            cob_variable_name="cob_config",
-            holidays_variable_name="us_holidays",
-        ),
+        # Since we register the DeadlineReference, it is in the DeadlineReference namespace, alongside the built-ins.
+        # No parentheses needed since registration already instantiated it for you.  Unlike a parameterized built-in
+        # such as DeadlineReference.FIXED_DATETIME(dt), a custom reference cannot take arguments through the
+        # namespace.  To pass field values, import the class and instantiate it yourself:
+        #     CloseOfBusinessDeadline(cob_variable_name="other_config")
+        reference=DeadlineReference.CloseOfBusinessDeadline,
         interval=timedelta(minutes=-30),
         callback=SyncCallback(log_missed_deadline),
     ),

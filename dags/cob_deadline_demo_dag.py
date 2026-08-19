@@ -10,17 +10,18 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from cob_reference import CloseOfBusinessDeadline
 from deadline_callbacks import log_missed_deadline
 
 from airflow.providers.standard.operators.bash import BashOperator
-from airflow.sdk import DAG, DeadlineAlert, SyncCallback
+from airflow.sdk import DAG, DeadlineAlert, DeadlineReference, SyncCallback
 
 with DAG(
     dag_id="cob_deadline_demo",
     schedule=None,
     deadline=DeadlineAlert(
-        reference=CloseOfBusinessDeadline(),
+        # Since we register the DeadlineReference, it is in the DeadlineReference namespace, alongside the built-ins.
+        # No parentheses needed since registration already instantiated it for you.
+        reference=DeadlineReference.CloseOfBusinessDeadline,
         # TODO (step 4): alert 30 minutes BEFORE close of business rather than after it.
         interval=timedelta(minutes=30),
         callback=SyncCallback(log_missed_deadline),

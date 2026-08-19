@@ -119,7 +119,8 @@ class CloseOfBusinessDeadline(BaseDeadlineReference):
 ```
 
 The parentheses matter on Airflow 3.3.0.  Used bare, the decorator rebinds your class to a function and fails 
-later with a confusing error.  This is a bug which will be fixed in an upcoming release.
+later with a confusing error.  A fix for the bare form is in flight upstream; until it reaches a release you have,
+keep the parentheses.
 
 **Then register it in a plugin**, in the same file (`AirflowPlugin` is already imported for you):
 
@@ -241,8 +242,8 @@ config = get_variable(self.cob_variable_name, default=DEFAULT_COB, deserialize_j
 ```
 
 `deserialize_json=True` parses the JSON for you, and `default=` means an unset Variable gets a documented fallback
-rather than a crash.  Both lookups need the `session`, so give your helper methods a keyword-only `session`
-parameter and pass it down from `_evaluate_with()`.
+rather than a crash.  The lookup needs the `session`, so give the helper method you read it in a keyword-only
+`session` parameter and pass it down from `_evaluate_with()`.
 
 > [!IMPORTANT]
 > **Why the helper exists.**  `Variable.get()` is the API you would reach for, and the Deadline Alerts docs point at
@@ -276,11 +277,12 @@ python checker/check.py
 ```
 
 Your Reference should now compute a real close of business rather than a date in the past.  The checker will report
-the fields it found and flag them as lost, which is Step 6.
+the field it found and flag it as lost, which is Step 6.
 
-**In Airflow:** it runs, and it looks correct.  That is the trap.  The demo Dag passes the same Variable names as
-your field defaults, so the missing serializers change nothing you can observe.  Nothing warns you.  The bug only
-surfaces the day somebody points the Reference at a different Variable and gets the default anyway.
+**In Airflow:** it runs, and it looks correct.  That is the trap.  The demo Dag uses the registered instance, which
+was built with your field defaults, so a field that silently reverts to its default changes nothing you can observe.
+Nothing warns you.  The bug only surfaces the day somebody instantiates the Reference with a different Variable name
+and gets the default anyway.
 
 `solutions/cob_reference_step5_variable.py` is the matching known-good example if you want to compare.
 
@@ -308,7 +310,7 @@ def deserialize_reference(cls, reference_data: dict[str, Any]) -> CloseOfBusines
 
 ```bash
 python checker/check.py
-`````
+```
 
 Back to `All good`, and this time `fields survive` is listed.  That line is the point of the step: the checker sends
 probe values through `serialize_reference()` and `deserialize_reference()` and reports any field that comes back
@@ -326,25 +328,31 @@ already told you what the deadline would be, and you can change the close-of-bus
 `checker/variables.json` to see it move between "already passed" and "in the future".  The live version will be
 demonstrated during the session.
 
-**A close of business in the past should fire immediately.**
+Both tests work the same way: set the close of business relative to **now**, and let the negative interval decide
+which side of now the deadline lands on.  Note that your Reference always rolls forward to the *next* close of
+business, so a time earlier today is not "in the past", it is tomorrow.
+
+**Deadline already overdue: it fires immediately.**  Set the close of business **less than 30 minutes from now**, so
+subtracting 30 puts the deadline behind you.  Ten minutes out is a good choice:
 
 ```bash
-airflow variables set cob_config '{"hour": 0, "minute": 1}'
+airflow variables set cob_config '{"hour": <hour>, "minute": <minute>}'   # now + 10 minutes
 airflow dags trigger cob_deadline_demo
 ```
 
-The deadline is already overdue, so the callback runs on the next scheduler heartbeat.  Watch your scheduler's
-console for `**FINDME**`, or `grep FINDME` the file under `$AIRFLOW_HOME/logs/executor_callbacks/`.
+The callback runs on the next scheduler heartbeat.  Watch your scheduler's console for `**FINDME**`, or `grep FINDME`
+the file under `$AIRFLOW_HOME/logs/executor_callbacks/`.
 
-**A close of business in the future fires when it arrives.** 
-
-Add about 33 minutes to the current time and replace the placeholders in the snippet below.  Since the interval
-subtracts 30 minutes, that lands the deadline a few minutes from now.
+**Deadline still ahead: it fires when it arrives.**  Set the close of business **about 33 minutes from now**, so
+subtracting 30 leaves the deadline a few minutes out:
 
 ```bash
-airflow variables set cob_config '{"hour": <hour>, "minute": <minute>}'
+airflow variables set cob_config '{"hour": <hour>, "minute": <minute>}'   # now + 33 minutes
 airflow dags trigger cob_deadline_demo
 ```
+
+Check the deadline landed in the future before you wait for it: the checker's `deadline` line says "already passed"
+or "in the future", which tells you immediately whether you did the arithmetic right.
 
 This test needs the Dag to still be running when the deadline passes, which is why the demo Dag sleeps for 300 seconds.
 **A Dag run that succeeds deletes any deadline it did not breach**, so a Dag that finishes in two seconds will never 

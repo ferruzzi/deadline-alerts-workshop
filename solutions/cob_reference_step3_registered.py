@@ -1,8 +1,13 @@
 """
-Your working file.  The walkthrough and all of the explanation live in EXERCISE.md.
+Solution: Step 3, the smallest thing that fires.
 
-Copy this directory into your Airflow plugins folder, and restart Airflow after every change:
-plugin registration happens at import.
+At this point the reference takes no arguments and returns a close of business that has already passed, so the
+Deadline is overdue the moment the Dag run is created and the callback fires on the next scheduler heartbeat.
+That fast feedback loop is the whole point of doing this step first.
+
+Because there are no fields, the inherited ``serialize_reference`` and ``deserialize_reference`` are sufficient:
+they carry the class name, which is all the scheduler needs to rebuild an argument-less reference.  Serializers
+become necessary in the next step, when the class gains fields.
 """
 
 from __future__ import annotations
@@ -47,21 +52,25 @@ def get_variable(key: str, default: Any = _NOTSET, deserialize_json: bool = Fals
 DEFAULT_COB = {"hour": 17, "minute": 0}
 
 
-# TODO (step 3): decorate with @deadline_reference()
+# Apollo 11 touchdown.  Absurd on purpose: nobody will mistake this for business logic,
+# which is exactly what you want from temporary scaffolding.
+MOON_LANDING = datetime(1969, 7, 20, 20, 17, tzinfo=timezone.utc)
+
+
+@deadline_reference()
 class CloseOfBusinessDeadline(BaseDeadlineReference):
-    """Return the time the report is due: the next close of business."""
+    """A close of business that is permanently, obviously in the past."""
 
     def _evaluate_with(self, *, session: Session, **kwargs: Any) -> datetime | None:
-        # TODO (step 2): return a timezone-aware datetime that has already passed
-        raise NotImplementedError("Step 2: return an aware datetime in the past")
+        # The one hard requirement is that this is timezone-aware.  Deadlines are stored as UTC
+        # timestamps, so a naive datetime would be wrong.  Here that comes from tzinfo=timezone.utc;
+        # once you need "now", datetime.now().astimezone() gets you an aware value just as easily.
+        return MOON_LANDING
 
 
-# TODO (step 3): register the class so the scheduler can resolve it
-#
-#   class CobPlugin(AirflowPlugin):
-#       name = "cob_plugin"
-#       deadline_references = [CloseOfBusinessDeadline]
-
-
-# TODO (step 5): read the close-of-business time from a Variable via get_variable() above, and skip weekends
-# TODO (step 6): add serialize_reference() and deserialize_reference()
+# -- registration -- Step 3 -----------------------------------------------------------
+# Required in addition to @deadline_reference(): the scheduler resolves references through the plugin registry, and
+# one that is decorated but unregistered raises DeadlineReferenceNotRegistered at Dag run creation.
+class CobPlugin(AirflowPlugin):
+    name = "cob_plugin"
+    deadline_references = [CloseOfBusinessDeadline]

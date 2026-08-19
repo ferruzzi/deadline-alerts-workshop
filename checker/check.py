@@ -8,7 +8,7 @@ NOTE:
 
 Parameters:
   First parameter is the path to the reference plugin file, defaults to ../plugins/cob_reference.py
-  Second parameter is the path to the Dag file, defaults to ../dags/cob_deadline_demo.py
+  Second parameter is the path to the Dag file, defaults to ../dags/cob_deadline_demo_dag.py
 
 Requirements:
   Python 3.10+ and nothing else.
@@ -64,34 +64,50 @@ def _preferred(subdir: str, filename: str) -> Path:
 
 _NOTSET = object()
 _REGISTERED: list[type] = []
+_VARIABLES: dict[str, str] | None = None
+
+
+def _variables() -> dict[str, str]:
+    global _VARIABLES
+    if _VARIABLES is None:
+        path = HERE / "variables.json"
+        _VARIABLES = json.loads(path.read_text()) if path.exists() else {}
+    return _VARIABLES
+
+
+class _MetastoreBackend:
+    """
+    Partial mock of ``airflow.secrets.metastore.MetastoreBackend``: only ``get_variable``, from variables.json.
+
+    Returns the raw string, or ``None`` for a key that is not there, which is what the real one does.  ``session``
+    is accepted and ignored, since there is no database here.
+    """
+
+    @staticmethod
+    def get_variable(key: str, team_name: str | None = None, *, session=None) -> str | None:
+        return _variables().get(key)
 
 
 class _Variable:
     """
-    Partial mock of ``airflow.sdk.Variable``: only implements ``get``, which is backed by variables.json.
+    Stand-in for ``airflow.sdk.Variable``, and deliberately a trap rather than a mock.
+
+    On Airflow 3.3.0 this API opens its own database session to read a Variable, which commits and closes the one
+    your Reference was handed.  Inside the scheduler's ``prohibit_commit`` guard that read is rejected and comes
+    back to you as ``VARIABLE_NOT_FOUND`` for a Variable that exists; with ``default=`` set you silently get your
+    default instead.  A mock that read variables.json would pass here and then ignore the Variable in real Airflow,
+    which is exactly the false green this checker exists to prevent, so it fails immediately instead.
     """
-
-    _store: dict[str, str] | None = None
-
-    @classmethod
-    def _load(cls) -> dict[str, str]:
-        if cls._store is None:
-            path = HERE / "variables.json"
-            cls._store = json.loads(path.read_text()) if path.exists() else {}
-        return cls._store
 
     @classmethod
     def get(cls, key: str, default=_NOTSET, deserialize_json: bool = False):
-        store = cls._load()
-        if key not in store:
-            if default is _NOTSET:
-                raise KeyError(
-                    f"Variable {key!r} is not set.  Add it to {HERE / 'variables.json'}, or pass a default like "
-                    f"Variable.get({key!r}, default=...)."
-                )
-            return default
-        raw = store[key]
-        return json.loads(raw) if deserialize_json else raw
+        raise RuntimeError(
+            f"Variable.get({key!r}) is not usable inside _evaluate_with() on Airflow 3.3.0.  It opens its own "
+            "database session, which commits and closes the one your Reference was given; you then get "
+            "VARIABLE_NOT_FOUND for a Variable that exists, or silently get your default= instead, and on a "
+            "scheduled Dag it can take the scheduler down.  Use the get_variable() helper from "
+            "solutions/cob_reference_step6_final.py, which reads through MetastoreBackend on the session you were handed."
+        )
 
 
 class _BaseDeadlineReference:
@@ -157,6 +173,8 @@ def _install_stubs() -> None:
         deadline_reference=_deadline_reference,
     )
     module("airflow.sdk.definitions.variable", Variable=_Variable)
+    module("airflow.secrets")
+    module("airflow.secrets.metastore", MetastoreBackend=_MetastoreBackend)
     # Only needed if your file imports Session at runtime instead of guarding it
     # behind TYPE_CHECKING.  Harmless either way.
     module("sqlalchemy")
@@ -344,7 +362,7 @@ def main() -> int:
     if not target.exists():
         raise SystemExit(f"No such file: {target}")
 
-    dag_path = (Path(sys.argv[2]) if len(sys.argv) > 2 else _preferred("dags", "cob_deadline_demo.py")).resolve()
+    dag_path = (Path(sys.argv[2]) if len(sys.argv) > 2 else _preferred("dags", "cob_deadline_demo_dag.py")).resolve()
     interval, interval_source = _interval_from_dag(dag_path)
 
     print(f"Checking {target}")

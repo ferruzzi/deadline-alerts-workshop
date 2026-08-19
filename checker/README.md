@@ -27,14 +27,14 @@ Either path works, from the repo root or from this directory:
 
 ```bash
 cd checker && python check.py                            # the file you are editing
-python check.py ../solutions/step3_hardcoded.py           # or check a solution
-python check.py ../solutions/cob_reference.py
+python check.py ../solutions/cob_reference_step3_registered.py           # or check a solution
+python check.py ../solutions/cob_reference_step6_final.py
 ```
 
 With no arguments it looks for `$AIRFLOW_HOME/plugins/cob_reference.py` first, since Setup has you copy
 the files there and edit the copies, and falls back to `plugins/cob_reference.py` in the repo for anyone
 working without Airflow.  The interval is resolved the same way, preferring
-`$AIRFLOW_HOME/dags/cob_deadline_demo.py`.  The path it used is always printed.
+`$AIRFLOW_HOME/dags/cob_deadline_demo_dag.py`.  The path it used is always printed.
 
 A second path points it at a different Dag, which is useful in Part 4 when you are building your own:
 
@@ -58,11 +58,11 @@ When you are done it looks like this:
 ```
 === CloseOfBusinessDeadline ===
   reference          2026-09-01 17:00:00-05:00
-  interval           -1 day, 23:30:00  (from cob_deadline_demo.py)
+  interval           -1 day, 23:30:00  (from cob_deadline_demo_dag.py)
   deadline           2026-09-01 16:30:00-05:00  (in the future)
   serialized         {'reference_type': 'CloseOfBusinessDeadline', 'cob_variable_name': 'cob_config', ...}
   round-trip         ok
-  fields survive     ok (cob_variable_name, holidays_variable_name)
+  fields survive     ok (cob_variable_name)
   plugin             registered
 
 All good: 1 reference(s) checked.
@@ -87,7 +87,7 @@ enough, and an unregistered Reference fails when the Dag run is created.
 This is a teaching aid, not production code, and it is deliberately brittle.
 
 The interval lives in the Dag rather than the Reference, so the checker reads
-`dags/cob_deadline_demo.py` and looks for exactly the shape this exercise uses: a `DeadlineAlert(...)`
+`dags/cob_deadline_demo_dag.py` and looks for exactly the shape this exercise uses: a `DeadlineAlert(...)`
 call with `interval=timedelta(...)`.  Rename things, lift the interval into a constant, or compute it,
 and it falls back to an illustrative `-30 minutes` and says so on the `interval` line.  It parses the
 Dag rather than importing it, which is why it needs no stubs for operators or callbacks.

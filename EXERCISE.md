@@ -33,11 +33,10 @@ Then **restart Airflow**.  Plugin registration happens at import, so a restart i
 a plugin file.  This will be the single most common reason a change you make in this workshop doesn't appear to 
 do anything.
 
-Set the two Variables which the finished version will need:
+Set the Variable which the finished version will need:
 
 ```bash
 airflow variables set cob_config '{"hour": 17, "minute": 0}'
-airflow variables set us_holidays '["2026-12-25", "2026-01-01", "2026-07-04"]'
 ```
 
 Finally, **unpause the Dag**:
@@ -122,12 +121,9 @@ class CloseOfBusinessDeadline(BaseDeadlineReference):
 The parentheses matter on Airflow 3.3.0.  Used bare, the decorator rebinds your class to a function and fails 
 later with a confusing error.  This is a bug which will be fixed in an upcoming release.
 
-**Then register it in a plugin**, in the same file:
+**Then register it in a plugin**, in the same file (`AirflowPlugin` is already imported for you):
 
 ```python
-from airflow.plugins_manager import AirflowPlugin
-
-
 class CobPlugin(AirflowPlugin):
     name = "cob_plugin"
     deadline_references = [CloseOfBusinessDeadline]
@@ -183,11 +179,11 @@ running your scheduler, and can be run after the fact:
 grep -r FINDME "$(airflow config get-value logging base_log_folder)/executor_callbacks/"
 ```
 
-`solutions/step3_hardcoded.py` is the matching known-good example if you want to compare.
+`solutions/cob_reference_step3_registered.py` is the matching known-good example if you want to compare.
 
 ## Step 4: Wire it up with a negative interval
 
-Your Reference is working, but the Dag is not finished.  In `dags/cob_deadline_demo.py`, change the interval to a
+Your Reference is working, but the Dag is not finished.  In `dags/cob_deadline_demo_dag.py`, change the interval to a
 negative timedelta:
 
 ```python
@@ -209,7 +205,7 @@ becomes a real time.
 python checker/check.py
 ```
 
-The checker reads the interval out of `dags/cob_deadline_demo.py`, so the `interval` and `deadline` lines now
+The checker reads the interval out of `dags/cob_deadline_demo_dag.py`, so the `interval` and `deadline` lines now
 reflect what you actually wrote.  Before this step it reports `0:30:00` and points out that a positive interval puts
 the deadline *after* the reference; afterwards it shows `-1 day, 23:30:00`, which is how a `timedelta` prints minus
 thirty minutes.
@@ -217,7 +213,7 @@ thirty minutes.
 **In Airflow:** the deadline moves 30 minutes earlier than the close of business your Reference returns.  Step 7 is
 where you watch that matter.
 
-`solutions/cob_deadline_demo.py` is the finished Dag.
+`solutions/cob_deadline_demo_dag.py` is the finished Dag.
 
 ## Step 5: Read the time from a Variable
 
@@ -232,22 +228,46 @@ your class with no arguments, so a field without a default breaks at import.
 @dataclass
 class CloseOfBusinessDeadline(BaseDeadlineReference):
     cob_variable_name: str = "cob_config"
-    holidays_variable_name: str | None = "us_holidays"
 ```
 
 Note the decorator order. `@dataclass` is applied first, so registration sees a finished dataclass.
 
-Then read the Variables inside `_evaluate_with()`:
+Then read the Variables inside `_evaluate_with()`.  On Airflow 3.3.0 you cannot use `airflow.sdk.Variable.get` for
+this, so your skeleton already contains a `get_variable()` helper that stands in for it.  You do not have to write
+or change it; just call it:
 
 ```python
-config = Variable.get(self.cob_variable_name, default=DEFAULT_COB, deserialize_json=True)
+config = get_variable(self.cob_variable_name, default=DEFAULT_COB, deserialize_json=True, session=session)
 ```
 
-`deserialize_json=True` parses the JSON for you, and `default=` means an unset Variable gets a documented fallback 
-rather than a crash.
+`deserialize_json=True` parses the JSON for you, and `default=` means an unset Variable gets a documented fallback
+rather than a crash.  Both lookups need the `session`, so give your helper methods a keyword-only `session`
+parameter and pass it down from `_evaluate_with()`.
 
-Now let's add the business-day logic: if it is past close of business today, or today is a weekend or holiday, roll 
-forward to the next working day.
+> [!IMPORTANT]
+> **Why the helper exists.**  `Variable.get()` is the API you would reach for, and the Deadline Alerts docs point at
+> it.  The surprise is not that the SDK cannot read a Variable out here; it reads one perfectly well.  It is that
+> *every* Variable API in Airflow 3.3.0 opens its **own** database session to do it, and opening a second session
+> commits and closes the one your Reference was handed.  Depending on what Airflow was in the middle of, that
+> detaches its objects, throws away the writes it makes next, or is rejected outright and reported back to you as
+> `VARIABLE_NOT_FOUND` for a Variable that plainly exists.  Add `default=` and the whole thing goes quiet: your
+> default comes back and nothing says the lookup failed.  I only found this shortly before the summit, hence the
+> workaround.
+>
+> **The rule worth taking home is not "the SDK can't do this here", it is: reuse the session you were given.**
+> `MetastoreBackend` is the only API in 3.3.0 that lets you pass one in.  `airflow.models.Variable.get` looks like
+> the obvious alternative and is not; it accepts no session either, so it detaches your objects too.
+>
+> `default=` is safe in the helper, because `MetastoreBackend` returning nothing genuinely means the Variable is
+> unset.  The danger was never `default=`; it was `default=` on top of an error that lied.
+>
+> Two caveats.  This reads only the metadata database, so `AIRFLOW_VAR_*` environment variables and other secrets
+> backends are skipped.  And the helper deliberately mirrors `Variable.get`'s signature, so if the SDK API is fixed
+> the upgrade is to delete the helper, rename the call to `Variable.get`, and drop `session=session`.  Nothing else
+> changes.
+
+Now let's add the business-day logic: if it is past close of business today, or today is a weekend, roll
+forward to the next working day.  Everything you need from `datetime` is already imported.
 
 ### Checkpoint
 
@@ -262,37 +282,33 @@ the fields it found and flag them as lost, which is Step 6.
 your field defaults, so the missing serializers change nothing you can observe.  Nothing warns you.  The bug only
 surfaces the day somebody points the Reference at a different Variable and gets the default anyway.
 
-`solutions/step5_variable.py` is the matching known-good example if you want to compare.
+`solutions/cob_reference_step5_variable.py` is the matching known-good example if you want to compare.
 
 ## Step 6: Add the serializers
 
 Your Reference travels with the serialized Dag, and the scheduler rebuilds it from a dict.  The inherited 
 `serialize_reference()` carries only the class name, which was fine in Step 3 but is now actively harmful since
-your new fields get silently reset to their defaults on the way back.  So we need to teach Airflow how to handle 
-your fields.
+your new field gets silently reset to its default on the way back.  So we need to teach Airflow how to handle
+it.
 
 ```python
 def serialize_reference(self) -> dict[str, Any]:
     return {
         "reference_type": self.reference_name,
         "cob_variable_name": self.cob_variable_name,
-        "holidays_variable_name": self.holidays_variable_name,
     }
 
 
 @classmethod
 def deserialize_reference(cls, reference_data: dict[str, Any]) -> CloseOfBusinessDeadline:
-    return cls(
-        cob_variable_name=reference_data["cob_variable_name"],
-        holidays_variable_name=reference_data["holidays_variable_name"],
-    )
+    return cls(cob_variable_name=reference_data["cob_variable_name"])
 ```
 
 ### Checkpoint
 
 ```bash
 python checker/check.py
-```
+`````
 
 Back to `All good`, and this time `fields survive` is listed.  That line is the point of the step: the checker sends
 probe values through `serialize_reference()` and `deserialize_reference()` and reports any field that comes back
@@ -301,7 +317,7 @@ wrong.  Comparing the serialized dict alone would have passed at Step 5 too.
 **In Airflow:** it runs, and nothing visibly changes from Step 5.  That is expected, and it is exactly why the
 checker exists.
 
-`solutions/cob_reference.py` is the finished Reference.
+`solutions/cob_reference_step6_final.py` is the finished Reference.
 
 ## Step 7: Test both directions
 
@@ -336,7 +352,14 @@ fire a future deadline no matter how carefully you set the Variable.
 
 ## Stretch goals
 
-- **Holidays from a Variable.** Already scaffolded via `holidays_variable_name`.  What else belongs in config rather than code?
+- **Holidays from a Variable.**  The exercise skips weekends only.  Add a second field naming a holiday Variable,
+  read it in `_evaluate_with()`, and extend `_is_business_day()`.  This is the best test of whether Step 6 stuck:
+  a new field is invisible until you remember to carry it through **both** serializers, and the checker will tell
+  you if you don't.  `checker/variables.json` already has a `us_holidays` entry; in Airflow, set it with
+
+  ```bash
+  airflow variables set us_holidays '["2026-12-25", "2026-01-01", "2026-07-04"]'
+  ```
 - **Half days.** Some businesses close at 13:00 on Fridays in summer.  Where does that live?
 - **A real timezone.** This exercise uses local time deliberately, so it cannot fail on a machine without a timezone 
   database.  Take a timezone name as a third field and use `ZoneInfo(name)`, and note that it needs `tzdata` installed.
@@ -350,17 +373,24 @@ fire a future deadline no matter how carefully you set the Variable.
 - **`airflow dags trigger <dag_id>` with no `-l` leaves `logical_date` NULL.**  It does not matter for this exercise, 
   but a Reference built on `DAGRUN_LOGICAL_DATE` gets no deadline at all in that case. Pass `-l "$(date -Iseconds)"` 
   or trigger from the UI.
-- **`Variable.get()` inside `_evaluate_with()` is safe here, but it will take down a scheduler.**  This exercise
-  triggers manually, so the run is created in the API server or the CLI and the call is fine.  On a **scheduled**
-  Dag it is not: the scheduler creates runs inside a `prohibit_commit` guard, `Variable.get` opens its own session,
-  and the ORM instances the deadline write needs end up detached.  Confirmed on 3.3.0: the deadline write raises
-  `DetachedInstanceError`, the scheduler's own "do not crash on a misconfigured Dag" handler raises a second one
-  while logging it, and **the scheduler process exits and crashes again on restart**, because the same Dag is still
-  due.  If that happens to you: **pause the Dag** (the UI stays up, only the scheduler dies), then restart the
-  scheduler.
+- **`Variable.get()` inside `_evaluate_with()` is not safe on any path, and on a scheduled Dag it can take down a
+  scheduler.**  The helper in Step 5 is not belt-and-braces; it is load-bearing.  Every Variable API in 3.3.0 opens
+  its own database session, which commits and closes the one your Reference was handed, and what you see next
+  depends only on what Airflow was in the middle of:
 
-  So if you add a `schedule=` to your Dag during the free-form section, read the Variable through the session you
-  were already handed:
+  - On a **manual** run the deadline write can lose the objects it needs and raise `DetachedInstanceError`.  On a
+    **scheduled** run, confirmed on 3.3.0, the scheduler's own "do not crash on a misconfigured Dag" handler then
+    raises a second error while logging the first, and **the scheduler process exits and crashes again on restart**
+    because the same Dag is still due.  If that happens to you: **pause the Dag** (the UI stays up, only the
+    scheduler dies), then restart the scheduler.
+  - Under the scheduler's `prohibit_commit` guard the read is rejected and reported to you as `VARIABLE_NOT_FOUND`
+    for a Variable that plainly exists.  With `default=` set you get your default and **no error at all**.
+  - Writes Airflow makes *after* your read can be silently discarded.  A custom **timetable** that reads a Variable
+    this way never gets its `next_dagrun` written, so the Dag simply never runs, with nothing logged.  Same defect,
+    different feature.
+
+  `airflow.models.Variable.get` is not the way out; it accepts no session either.  Pass the session you were given,
+  which is what `get_variable()` does:
 
   ```python
   from airflow.secrets.metastore import MetastoreBackend
@@ -368,10 +398,14 @@ fire a future deadline no matter how carefully you set the Variable.
   raw = MetastoreBackend().get_variable("cob_config", session=session)
   ```
 
-  That joins the existing transaction instead of opening a second one.  Note that it reads only the metadata
-  database, so `AIRFLOW_VAR_*` env vars and other secrets backends are skipped.
+  Verified to work both inside and outside the scheduler's guard, leaving the caller's objects intact.
   [#68917](https://github.com/apache/airflow/pull/68917) fixes the equivalent problem for Airflow's own
   Variable-backed interval, but not for a custom Reference doing its own lookup, so this is the pattern to use.
+- **An `AIRFLOW_VAR_*` environment variable is a second escape hatch.**  The environment secrets backend is
+  consulted before the metadata database and opens no session, so plain `Variable.get("cob_config")` works from
+  inside a Reference when the value comes from `AIRFLOW_VAR_COB_CONFIG`.  Two catches: changing it means restarting
+  the component, so you lose the "edit it and watch the deadline move" trick this exercise relies on; and because
+  the environment wins, an env var left set will silently shadow the Variable you edit in the UI.
 - **Put configuration in your Reference, not in the interval.**  Airflow does have a way to read the *interval*
   itself from a Variable, but it is not usable yet: it rejects negative values, so "alert 30 minutes before" is off
   the table, and its behaviour on scheduled runs is still being repaired.  Keeping the configuration inside the

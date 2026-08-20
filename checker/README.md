@@ -2,11 +2,11 @@
 
 `check.py` validates a custom Deadline Reference without Airflow installed.
 
-**Use it even if you have Airflow.** It runs in about a second, where the Airflow loop is restart, trigger, wait
-for a heartbeat, read the logs. It also catches two mistakes Airflow reports silently: fields dropped by missing
+**Use it even if you have Airflow.**  It runs in about a second, where the Airflow loop is restart, trigger, wait
+for a heartbeat, read the logs.  It also catches two mistakes Airflow reports silently: fields dropped by missing
 serializers, and a Reference that was decorated but never registered in a plugin.
 
-If you could not get Airflow running at all, this is your whole exercise. Writing a custom Deadline Reference is
+If you could not get Airflow running at all, this is your whole exercise.  Writing a custom Deadline Reference is
 mostly business-day arithmetic, timezone handling, and a small serialization contract.  None of that needs a
 scheduler.
 
@@ -27,7 +27,7 @@ Either path works, from the repo root or from this directory:
 
 ```bash
 cd checker && python check.py                            # the file you are editing
-python check.py ../solutions/cob_reference_step3_registered.py           # or check a solution
+python check.py ../solutions/cob_reference_step3_registered.py # or check a solution
 python check.py ../solutions/cob_reference_step6_final.py
 ```
 

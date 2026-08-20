@@ -1,6 +1,6 @@
 # The Exercise: CloseOfBusinessDeadline
 
-Your Dag generates a report which the boss needs before they leave.  When is that? It isn't always "by 17:00
+Your Dag generates a report which the boss needs before they leave.  When is that?  It isn't always "by 17:00
 today".  Weekends, holidays, time zones, and tee-times all get a vote, and no built-in Deadline Reference knows 
 your business calendar.
 
@@ -12,9 +12,9 @@ negative interval so it warns you *before* the deadline rather than after.
 ## Setup
 
 > [!NOTE]
-> **No working Airflow?** Skip this whole section. Edit `plugins/cob_reference.py` right here in the repo,
+> **No working Airflow?** Skip this whole section.  Edit `plugins/cob_reference.py` right here in the repo,
 > and instead of setting Airflow Variables, edit `checker/variables.json`. Everything from Step 1 onwards
-> works exactly the same; you will just use the checker rather than triggering a Dag. See
+> works exactly the same; you will just use the checker rather than triggering a Dag.  See
 > [`checker/README.md`](checker/README.md).
 
 Copy the two directories into your Airflow home:
@@ -25,8 +25,8 @@ cp dags/*.py $AIRFLOW_HOME/dags/
 ```
 
 > [!IMPORTANT]
-> From here on, **edit the copies in `$AIRFLOW_HOME`, not the files in this repo.** Those are the ones
-> Airflow loads; edits to the repo copies have no effect. The checker prefers the `$AIRFLOW_HOME` copies
+> From here on, **edit the copies in `$AIRFLOW_HOME`, not the files in this repo.**  Those are the ones
+> Airflow loads; edits to the repo copies have no effect.  The checker prefers the `$AIRFLOW_HOME` copies
 > too and prints the path it used, so you can always confirm which file it looked at.
 
 Then **restart Airflow**.  Plugin registration happens at import, so a restart is needed after every change to 
@@ -92,7 +92,7 @@ which is Step 3.  Worth running once so the output is familiar later.
 ## Step 2: Hardcode a close of business in the past
 
 Two things matter for this step:
-1. It must be **timezone-aware**  
+1. It must be **timezone-aware**.
 2. For this step it must be **in the past**.  We want it to fire immediately so we can verify that it worked.
 
 Set this to whatever past date you want.  If you can't think of one, here's the date/time of the moon landing:
@@ -119,8 +119,8 @@ class CloseOfBusinessDeadline(BaseDeadlineReference):
 ```
 
 The parentheses matter on Airflow 3.3.0.  Used bare, the decorator rebinds your class to a function and fails 
-later with a confusing error.  A fix for the bare form is in flight upstream; until it reaches a release you have,
-keep the parentheses.
+later with a confusing error.  A fix for the bare form is in flight upstream; keep the parentheses until it 
+reaches a release you are running.
 
 **Then register it in a plugin**, in the same file (`AirflowPlugin` is already imported for you):
 
@@ -151,7 +151,7 @@ Everything should pass now: `All good: 1 reference(s) checked.`
 Deadline Reference before you have written a single line of business logic.
 
 > [!TIP]
-> **Where the callback output goes.** A deadline callback is not a task instance, so its output is *not* in the
+> **Where the callback output goes.**  A deadline callback is not a task instance, so its output is *not* in the
 > task log and the UI has no page for it.  Two places to look:
 > - **Your scheduler's console**, where it appears live within seconds, tagged `[task.stdout]`.  That console also
 >   carries ordinary task output, so it is busy; we included `**FINDME**` in the message so `grep FINDME` picks
@@ -192,9 +192,9 @@ interval=timedelta(minutes=-30),
 ```
 
 Intervals are added to the reference, so a negative one puts the deadline *before* it.  This is handy if you want 
-warning before the set time, while you can still do something, rather than after we have already missed it.  A
-message an hour after you close saying you missed the Close of business isn't particularly useful.  A positive 
-interval, on the other hand, might be used to say "I need this within an hour after we open." 
+warning before the set time, while you can still do something, rather than after missing it.  A message an hour 
+after you close saying you missed the close of business isn't particularly useful.  A positive interval, on the 
+other hand, might be used to say "I need this within an hour after we open." 
 
 The effect is academic while your Reference still returns a hardcoded date in the past, since the deadline was
 already overdue and 30 minutes earlier is no different.  It starts mattering in Step 5, when the close of business
@@ -231,7 +231,7 @@ class CloseOfBusinessDeadline(BaseDeadlineReference):
     cob_variable_name: str = "cob_config"
 ```
 
-Note the decorator order. `@dataclass` is applied first, so registration sees a finished dataclass.
+Note the decorator order.  `@dataclass` is applied first, so registration sees a finished dataclass.
 
 Then read the Variables inside `_evaluate_with()`.  On Airflow 3.3.0 you cannot use `airflow.sdk.Variable.get` for
 this, so your skeleton already contains a `get_variable()` helper that stands in for it.  You do not have to write
@@ -242,8 +242,7 @@ config = get_variable(self.cob_variable_name, default=DEFAULT_COB, deserialize_j
 ```
 
 `deserialize_json=True` parses the JSON for you, and `default=` means an unset Variable gets a documented fallback
-rather than a crash.  The lookup needs the `session`, so give the helper method you read it in a keyword-only
-`session` parameter and pass it down from `_evaluate_with()`.
+rather than a crash.  The lookup needs the `session`, so pass the helper method a`session` from `_evaluate_with()`.
 
 > [!IMPORTANT]
 > **Why the helper exists.**  `Variable.get()` is the API you would reach for, and the Deadline Alerts docs point at
@@ -252,7 +251,7 @@ rather than a crash.  The lookup needs the `session`, so give the helper method 
 > commits and closes the one your Reference was handed.  Depending on what Airflow was in the middle of, that
 > detaches its objects, throws away the writes it makes next, or is rejected outright and reported back to you as
 > `VARIABLE_NOT_FOUND` for a Variable that plainly exists.  Add `default=` and the whole thing goes quiet: your
-> default comes back and nothing says the lookup failed.  I only found this shortly before the summit, hence the
+> default comes back and nothing says the lookup failed.  I only found this shortly before the Summit, hence the
 > workaround.
 >
 > **The rule worth taking home is not "the SDK can't do this here", it is: reuse the session you were given.**
@@ -262,8 +261,9 @@ rather than a crash.  The lookup needs the `session`, so give the helper method 
 > `default=` is safe in the helper, because `MetastoreBackend` returning nothing genuinely means the Variable is
 > unset.  The danger was never `default=`; it was `default=` on top of an error that lied.
 >
-> Two caveats.  This reads only the metadata database, so `AIRFLOW_VAR_*` environment variables and other secrets
-> backends are skipped.  And the helper deliberately mirrors `Variable.get`'s signature, so if the SDK API is fixed
+> Two caveats.  This reads only the metadata database, so a Variable that lives in a secrets backend (Vault,
+> Secrets Manager, an `AIRFLOW_VAR_*` environment variable) is invisible to it; worth knowing before you take the
+> pattern back to work.  And the helper deliberately mirrors `Variable.get`'s signature, so if the SDK API is fixed
 > the upgrade is to delete the helper, rename the call to `Variable.get`, and drop `session=session`.  Nothing else
 > changes.
 
@@ -368,18 +368,18 @@ fire a future deadline no matter how carefully you set the Variable.
   ```bash
   airflow variables set us_holidays '["2026-12-25", "2026-01-01", "2026-07-04"]'
   ```
-- **Half days.** Some businesses close at 13:00 on Fridays in summer.  Where does that live?
-- **A real timezone.** This exercise uses local time deliberately, so it cannot fail on a machine without a timezone 
+- **Half days.**  Some businesses close at 13:00 on Fridays in summer.  Where does that live?
+- **A real timezone.**  This exercise uses local time deliberately, so it cannot fail on a machine without a timezone 
   database.  Take a timezone name as a third field and use `ZoneInfo(name)`, and note that it needs `tzdata` installed.
 
 ## Gotchas worth knowing
 
-- **Restart after every plugin change.** Registration happens at import.
-- **Define your Reference in the plugins folder, not in your Dag file.** Plugin discovery never scans the dags 
+- **Restart after every plugin change.**  Registration happens at import.
+- **Define your Reference in the plugins folder, not in your Dag file.**  Plugin discovery never scans the dags 
   folder, so a Reference defined alongside your Dag can never be registered.  It will parse and serialize fine, 
   then fail at Dag run creation.
 - **`airflow dags trigger <dag_id>` with no `-l` leaves `logical_date` NULL.**  It does not matter for this exercise, 
-  but a Reference built on `DAGRUN_LOGICAL_DATE` gets no deadline at all in that case. Pass `-l "$(date -Iseconds)"` 
+  but a Reference built on `DAGRUN_LOGICAL_DATE` gets no deadline at all in that case.  Pass `-l "$(date -Iseconds)"` 
   or trigger from the UI.
 - **`Variable.get()` inside `_evaluate_with()` is not safe on any path, and on a scheduled Dag it can take down a
   scheduler.**  The helper in Step 5 is not belt-and-braces; it is load-bearing.  Every Variable API in 3.3.0 opens
@@ -409,12 +409,7 @@ fire a future deadline no matter how carefully you set the Variable.
   Verified to work both inside and outside the scheduler's guard, leaving the caller's objects intact.
   [#68917](https://github.com/apache/airflow/pull/68917) fixes the equivalent problem for Airflow's own
   Variable-backed interval, but not for a custom Reference doing its own lookup, so this is the pattern to use.
-- **An `AIRFLOW_VAR_*` environment variable is a second escape hatch.**  The environment secrets backend is
-  consulted before the metadata database and opens no session, so plain `Variable.get("cob_config")` works from
-  inside a Reference when the value comes from `AIRFLOW_VAR_COB_CONFIG`.  Two catches: changing it means restarting
-  the component, so you lose the "edit it and watch the deadline move" trick this exercise relies on; and because
-  the environment wins, an env var left set will silently shadow the Variable you edit in the UI.
 - **Put configuration in your Reference, not in the interval.**  Airflow does have a way to read the *interval*
   itself from a Variable, but it is not usable yet: it rejects negative values, so "alert 30 minutes before" is off
-  the table, and its behaviour on scheduled runs is still being repaired.  Keeping the configuration inside the
+  the table, and its behavior on scheduled runs is still being repaired.  Keeping the configuration inside the
   Reference, which is what this exercise does, gets you Variable-backed timing and negative intervals today.

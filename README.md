@@ -7,9 +7,12 @@ knows your business calendar, skips weekends, and warns you *before* the deadlin
 
 **The walkthrough is in [EXERCISE.md](EXERCISE.md).**
 
+If something appears to do nothing, check [TROUBLESHOOTING.md](TROUBLESHOOTING.md) before debugging your own
+code.  Several things in Airflow 3.3.0 fail silently, and that file lists every one we know of, with the fix.
+
 ## Before You Arrive
 
-**Please set this up before the session.** Conference wifi will not be able to support 25 people downloading 
+**Please set this up before the session.**  Conference wifi will not be able to support 25 people downloading 
 Airflow at once, and we only have two hours.
 
 ### Requirements
@@ -21,7 +24,7 @@ Airflow at once, and we only have two hours.
 - Ability to **watch your scheduler's console output**, which is where the deadline callback output appears.
   (It is also written to `$AIRFLOW_HOME/logs/executor_callbacks/`.  `EXERCISE.md` has a table of where to find 
   it for each way of running Airflow, plus a `grep` one-liner that works without console access at all.)
-- **Python 3.10 or newer**.  If Airflow runs you already have this. Listed separately because the checker 
+- **Python 3.10 or newer**.  If Airflow runs you already have this.  Listed separately because the checker 
   needs only Python.
 
 ### Verify Your Setup
@@ -50,7 +53,7 @@ airflow version
 
 ### Get the Materials
 
-Clone this repo ahead of time as well. It is only a few kilobytes, so it is not the bandwidth problem the 
+Clone this repo ahead of time as well.  It is only a few kilobytes, so it is not the bandwidth problem the 
 Airflow install is, but having it already on disk is one less thing to do in the room:
 
 ```bash
@@ -69,25 +72,25 @@ airflow dags trigger cob_deadline_demo                        # fine for this ex
 airflow dags trigger cob_deadline_demo -l "$(date -Iseconds)" # safest in general
 ```
 
-The bare form leaves the run's `logical_date` unset. That is harmless here, because
+The bare form leaves the run's `logical_date` unset.  That is harmless here, because
 `CloseOfBusinessDeadline` computes its own time, but a Reference built on
 `DeadlineReference.DAGRUN_LOGICAL_DATE` gets no deadline at all when it is NULL, and says nothing
-about it. Worth knowing before you go building your own in the free-form session. Triggering from
+about it.  Worth knowing before you go building your own in the free-form session.  Triggering from
 the UI sets it for you.
 
 ## Didn't Get Set Up? You Can Still Participate
 
 Two fallbacks, no preparation required:
 
-1. **Pair up.** One working laptop per pair is plenty, and talking through the logic with someone else is 
+1. **Pair up.**  One working laptop per pair is plenty, and talking through the logic with someone else is 
    arguably the better way to learn it.  We will try to pair people off at the start of the session.
-2. **The checker on its own.** The important part of this exercise, the business-day logic and the serialization 
-   contract, does not need a running Airflow at all. See [`checker/README.md`](checker/README.md) for a standalone 
+2. **The checker on its own.**  The important part of this exercise, the business-day logic and the serialization 
+   contract, does not need a running Airflow at all.  See [`checker/README.md`](checker/README.md) for a standalone 
    checker that needs only Python 3.10+ and no Airflow install.  You lose the option to see your work run
    in the Airflow UI, but it can still be validated.
 
-**Everyone should use the checker, not just people without Airflow.** `checker/check.py` validates your
-Reference in about a second, where the Airflow loop is restart, trigger, wait for a heartbeat, read the logs. It
+**Everyone should use the checker, not just people without Airflow.**  `checker/check.py` validates your
+Reference in about a second, where the Airflow loop is restart, trigger, wait for a heartbeat, read the logs.  It
 also catches two mistakes that Airflow reports silently: fields dropped by missing serializers, and a Reference
 that was decorated but never registered in a plugin.
 
@@ -100,6 +103,7 @@ python checker/check.py
 
 ```
 EXERCISE.md                           the step-by-step walkthrough; start here in the session
+TROUBLESHOOTING.md                    known 3.3.0 sharp edges, symptom first; check here when something is silent
 plugins/                              copy into $AIRFLOW_HOME/plugins/
   cob_reference.py                    your working file, with TODOs (plus a provided get_variable helper)
   deadline_callbacks.py               given to you, complete

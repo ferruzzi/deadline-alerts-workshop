@@ -8,6 +8,23 @@ each issue is fixed or being fixed upstream, but things change fast so this may 
 
 Ordered roughly by how likely you are to hit it.
 
+- [Nothing happened when I triggered the Dag](#nothing-happened-when-i-triggered-the-dag)
+  - [The Dag is paused](#the-dag-is-paused)
+  - [You edited a plugin and did not restart](#you-edited-a-plugin-and-did-not-restart)
+- [Where does the callback output actually go?](#where-does-the-callback-output-actually-go)
+- [`DeadlineReferenceNotRegistered`, but I did register it](#deadlinereferencenotregistered-but-i-did-register-it)
+  - [You added the plugin while Airflow was running](#you-added-the-plugin-while-airflow-was-running)
+  - [Two plugins share the same `name`](#two-plugins-share-the-same-name)
+- [My Reference reads a Variable and the value is ignored](#my-reference-reads-a-variable-and-the-value-is-ignored)
+- [The scheduler died, or is crash-looping](#the-scheduler-died-or-is-crash-looping)
+- [My deadline was in the future, the Dag finished, and nothing ever fired](#my-deadline-was-in-the-future-the-dag-finished-and-nothing-ever-fired)
+- [I edited my Dag file and now the deadline never fires](#i-edited-my-dag-file-and-now-the-deadline-never-fires)
+- [How you trigger changes which References work](#how-you-trigger-changes-which-references-work)
+- [Do not clear a run that has a pending `DAGRUN_QUEUED_AT` deadline](#do-not-clear-a-run-that-has-a-pending-dagrun_queued_at-deadline)
+- [No callback at all, and the scheduler is throwing errors](#no-callback-at-all-and-the-scheduler-is-throwing-errors)
+- [Smaller oddities](#smaller-oddities)
+- [Still stuck?](#still-stuck)
+
 ---
 
 ## Nothing happened when I triggered the Dag

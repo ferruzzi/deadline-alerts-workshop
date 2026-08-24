@@ -18,7 +18,9 @@ Airflow at once, and we only have two hours.
 ### Requirements
 
 - **Apache Airflow 3.3.0 or newer**. Any installation method is fine: `pip` in a virtualenv, Docker, 
-  `airflow standalone`, an existing dev environment, or Breeze if that is already your workflow.
+  `airflow standalone`, an existing dev environment, or Breeze if that is already your workflow.  If you need a
+  starting point, follow the official
+  [Airflow installation docs](https://airflow.apache.org/docs/apache-airflow/stable/installation/)
 - Ability to **add a file to your plugins directory** and restart Airflow.
 - Ability to **set an Airflow Variable** (UI or CLI).
 - Ability to **watch your scheduler's console output**, which is where the deadline callback output appears.

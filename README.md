@@ -10,6 +10,9 @@ knows your business calendar, skips weekends, and warns you *before* the deadlin
 If something appears to do nothing, check [TROUBLESHOOTING.md](TROUBLESHOOTING.md) before debugging your own
 code.  Several things in Airflow 3.3.0 fail silently, and that file lists every one we know of, with the fix.
 
+Every slide is in [`slides/`](slides/), one PNG per slide, numbered to match the deck.  If you fall behind or lose
+sight of the screen, flip back through at your own pace.
+
 ## Before You Arrive
 
 **Please set this up before the session.**  Conference wifi will not be able to support 25 people downloading 
@@ -55,8 +58,9 @@ airflow version
 
 ### Get the Materials
 
-Clone this repo ahead of time as well.  It is only a few kilobytes, so it is not the bandwidth problem the 
-Airflow install is, but having it already on disk is one less thing to do in the room:
+Clone this repo ahead of time as well.  It is about 11 MB, nearly all of it the slide images in
+[`slides/`](slides/), so it is not the bandwidth problem the Airflow install is, but having it already on disk is
+one less thing to do in the room:
 
 ```bash
 git clone https://github.com/ferruzzi/deadline-alerts-workshop.git
@@ -119,6 +123,8 @@ solutions/                            checkpoints to compare against when you ar
 checker/
   check.py                            validates your Reference; also the whole exercise if you have no Airflow
   variables.json                      stands in for Airflow Variables when you have no Airflow
+slides/
+  slide-01.png … slide-39.png         the deck, one image per slide, numbered as presented
 ```
 
 `cob_reference_step5_variable.py` is deliberately incomplete and the checker will say so.  That is the point of it: it is what

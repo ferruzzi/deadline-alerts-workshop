@@ -17,12 +17,15 @@ negative interval so it warns you *before* the deadline rather than after.
 > works exactly the same; you will just use the checker rather than triggering a Dag.  See
 > [`checker/README.md`](checker/README.md).
 
-Copy the two directories into your Airflow home:
+Copy the plugins into your Airflow home:
 
 ```bash
 cp plugins/*.py $AIRFLOW_HOME/plugins/
-cp dags/*.py $AIRFLOW_HOME/dags/
 ```
+
+**The Dag comes later**, in [Step 3](#step-3-register-the-reference), if you copy it now you will get an 
+import error, because the Dag uses `DeadlineReference.CloseOfBusinessDeadline` which does not exist until 
+Step 3 registers it.
 
 > [!IMPORTANT]
 > From here on, **edit the copies in `$AIRFLOW_HOME`, not the files in this repo.**  Those are the ones
@@ -38,18 +41,6 @@ Set the Variable which the finished version will need:
 ```bash
 airflow variables set cob_config '{"hour": 17, "minute": 0}'
 ```
-
-Finally, **unpause the Dag**:
-
-```bash
-airflow dags unpause cob_deadline_demo
-```
-
-New Dags are paused when they first appear (`core.dags_are_paused_at_creation` defaults to `True`), and the toggle
-is at the top left of the Dag page in the UI if you prefer clicking.  Triggering a paused Dag looks like it worked:
-you get a Dag run, it sits in `queued`, and no task ever starts.  Nothing in the UI tells you why.  This is the
-second most common reason something in this workshop appears to do nothing, right behind forgetting to restart
-after editing a plugin.
 
 ## Checking Your Work
 
@@ -135,8 +126,29 @@ Both are required, and they do different jobs.  The decorator makes the class av
 when it deserializes your Dag.  If you skip the plugin then triggering the Dag fails with 
 `DeadlineReferenceNotRegistered`, which takes the whole Dag run with it rather than just the deadline.
 
-Restart Airflow and trigger `cob_deadline_demo` (unpaused, per Setup), then look for `FINDME` in your scheduler's 
-console output (or grep the log file).  You should have a firing deadline before you have any real logic.
+Now bring in the Dag.
+
+```bash
+cp dags/*.py $AIRFLOW_HOME/dags/
+```
+
+**Restart Airflow**  to parse the plugin change and force the dag processor to re-scan.
+
+**Unpause the Dag**.  New Dags are paused when they first appear (`core.dags_are_paused_at_creation` defaults 
+to `True`), and the toggle is at the top left of the Dag page in the UI if you prefer clicking, or the CLI 
+command is:
+
+```bash
+airflow dags unpause cob_deadline_demo
+```
+
+> [!NOTE]
+> Triggering a paused Dag looks like it worked: you get a Dag run, it sits in `queued`, but no task ever starts.  
+> Nothing in the UI tells you why.  This is the second most common reason something in this workshop appears to 
+> do nothing, right behind forgetting to restart after editing a plugin.
+
+Now trigger `cob_deadline_demo` and look for `FINDME` in your scheduler's console output (or grep the log file).
+You should have a firing deadline before you have any real logic.
 
 ### Checkpoint
 
